@@ -23,7 +23,7 @@ YouTube 동영상 다운로더 (최고 화질)
 옵션:
   --folderName <폴더명>   다운로드할 폴더명 지정 (기본값: 영상 제목)
   --parentFolder <폴더>   부모 폴더 지정 (예: --parentFolder "AA" → AA/영상제목/)
-  --output-dir <폴더>     다운로드할 폴더 지정 (기본값: /Users/zero/Workspace/superleek/cli-tools/datas/youtubes/폴더명/)
+  --output-dir <폴더>     다운로드할 폴더 지정 (기본값: /volume1/media/datas/youtubes/폴더명/)
   --filename <파일명>     파일명 지정 (확장자 제외)
   --audio-only           오디오만 다운로드
   --quality <품질>       최소 품질 지정 (예: 720, 1080, 1440, 2160)
@@ -332,8 +332,8 @@ async function downloadVideo(url, videoInfo, folderName, selectedFormat, options
       writeInfoJson: true
     };
 
-    // 기본 출력 폴더 설정 (/Users/zero/Workspace/superleek/cli-tools/datas/youtubes/사용자폴더명/)
-    const defaultOutputDir = path.join('/Users/zero/Workspace/superleek/cli-tools/datas', 'youtubes', folderName);
+    // 기본 출력 폴더 설정 (/volume1/media/datas/youtubes/사용자폴더명/)
+    const defaultOutputDir = path.join('/volume1/media/datas', 'youtubes', folderName);
 
     // 출력 폴더 설정
     if (options.outputDir) {
