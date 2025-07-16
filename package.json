@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "sh -c 'if [ -n \"$@\" ]; then node index.js --auto $@ && node index.js --audio-only --auto $@; fi' --"
+    "video": "node index.js --auto",
+    "audio": "node index.js --audio-only --auto",
+    "both": "npm run video \"$@\" && npm run audio \"$@\""
   },
   "keywords": [],
   "author": "",
