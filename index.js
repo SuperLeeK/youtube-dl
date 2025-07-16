@@ -333,7 +333,7 @@ async function downloadVideo(url, videoInfo, folderName, selectedFormat, options
     };
 
     // 기본 출력 폴더 설정 (/data/data/com.termux/files/home/workspace/datas/사용자폴더명/)
-    const defaultOutputDir = path.join('/volume1/media/datas', 'youtubes', folderName);
+    const defaultOutputDir = path.join('/data/data/com.termux/files/home/workspace/datas', 'youtubes', folderName);
 
     // 출력 폴더 설정
     if (options.outputDir) {
