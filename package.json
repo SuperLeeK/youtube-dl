@@ -3,10 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "bin": {
-    "music": "./bin/index.js --parentFolder 'Music' --auto",
-    "wak": "./bin/index.js --parentFolder 'Waktaverse' --auto",
-    "wak-audio": "./bin/index.js --parentFolder 'Waktaverse Music' --audio-only --auto",
-    "youtube": "./bin/index.js --auto"
+    "youtube": "./bin/index.js"
   },
   "scripts": {
     "video": "node ./bin/index.js --auto",
