@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const createLogger = require('progress-estimator');
 const inquirer = require('inquirer');
+require('dotenv').config();
 const logger = createLogger({
   spinner: {
     interval: 80,
