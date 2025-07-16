@@ -23,7 +23,7 @@ YouTube 동영상 다운로더 (최고 화질)
 옵션:
   --folderName <폴더명>   다운로드할 폴더명 지정 (기본값: 영상 제목)
   --parentFolder <폴더>   부모 폴더 지정 (예: --parentFolder "AA" → AA/영상제목/)
-  --output-dir <폴더>     다운로드할 폴더 지정 (기본값: /data/data/com.termux/files/home/workspace/datas/폴더명/)
+  --output-dir <폴더>     다운로드할 폴더 지정 (기본값: process.env.TARGET_DIR)
   --filename <파일명>     파일명 지정 (확장자 제외)
   --audio-only           오디오만 다운로드
   --quality <품질>       최소 품질 지정 (예: 720, 1080, 1440, 2160)
@@ -332,8 +332,8 @@ async function downloadVideo(url, videoInfo, folderName, selectedFormat, options
       writeInfoJson: true
     };
 
-    // 기본 출력 폴더 설정 (/data/data/com.termux/files/home/workspace/datas/사용자폴더명/)
-    const defaultOutputDir = path.join('/data/data/com.termux/files/home/workspace/datas', 'youtubes', folderName);
+    // 기본 출력 폴더 설정 (process.env.TARGET_DIR/사용자폴더명/)
+    const defaultOutputDir = path.join(process.env.TARGET_DIR, folderName);
 
     // 출력 폴더 설정
     if (options.outputDir) {
@@ -440,7 +440,22 @@ async function main() {
     return;
   }
 
-  const url = remainingArgs[0];
+  let url = remainingArgs[0];
+
+  // YouTube ID만 입력된 경우 전체 URL로 변환
+  if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+    // YouTube ID 패턴 확인 (11자리 영문자+숫자)
+    const youtubeIdPattern = /^[a-zA-Z0-9_-]{11}$/;
+    if (youtubeIdPattern.test(url)) {
+      url = `https://www.youtube.com/watch?v=${url}`;
+      console.log(`🔗 YouTube ID를 URL로 변환: ${url}`);
+    } else {
+      console.error('❌ 유효한 YouTube URL 또는 ID가 아닙니다.');
+      console.log('YouTube URL 예시: https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      console.log('YouTube ID 예시: dQw4w9WgXcQ');
+      return;
+    }
+  }
 
   // YouTube URL 검증
   if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
