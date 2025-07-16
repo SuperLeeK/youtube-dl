@@ -6,9 +6,7 @@
     "youtube": "./bin/index.js"
   },
   "scripts": {
-    "video": "node ./bin/index.js --auto",
-    "audio": "node ./bin/index.js --audio-only --auto",
-    "both": "npm run video \"$@\" && npm run audio \"$@\""
+    "start": "node ./bin/index.js"
   },
   "keywords": [],
   "author": "",

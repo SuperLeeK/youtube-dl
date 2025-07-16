@@ -4,8 +4,6 @@ const youtubedl = require('youtube-dl-exec');
 const path = require('path');
 const fs = require('fs');
 const createLogger = require('progress-estimator');
-const inquirer = require('inquirer');
-require('dotenv').config();
 const logger = createLogger({
   spinner: {
     interval: 80,
@@ -16,44 +14,20 @@ const logger = createLogger({
 // 사용법을 출력하는 함수
 function showUsage() {
   console.log(`
-YouTube 동영상 다운로더 (최고 화질)
+YouTube 다운로더 (최고 화질)
 
 사용법:
   youtube <YouTube_URL> [옵션]
 
 옵션:
-  --folderName <폴더명>   다운로드할 폴더명 지정 (기본값: 영상 제목)
-  --parentFolder <폴더>   부모 폴더 지정 (예: --parentFolder "AA" → AA/영상제목/)
-  --output-dir <폴더>     다운로드할 폴더 지정 (기본값: process.env.TARGET_DIR)
-  --filename <파일명>     파일명 지정 (확장자 제외)
-  --audio-only           오디오만 다운로드
-  --quality <품질>       최소 품질 지정 (예: 720, 1080, 1440, 2160)
-  --auto                 자동 선택 모드 (인터랙티브 선택 건너뛰기)
-  --help                 도움말 표시
-
-폴더명 예약어:
-  예약어들이 현재 날짜/시간으로 자동 치환됩니다:
-  {fullTime} → YYMMDD_HHmmss (예: 231215_143022)
-  {date} → YYMMDD (예: 231215)
-  {year} 또는 {y} → YY (예: 23)
-  {month} 또는 {m} → MM (예: 12)
-  {day} 또는 {d} → DD (예: 15)
-  {time} → HHmmss (예: 143022)
-  {hour} 또는 {h} → HH (예: 14)
-  {minute} 또는 {min} → mm (예: 30)
-  {second} 또는 {sec} → ss (예: 22)
-  
-  예: "이번플리_{date}_{time}" → "이번플리_231215_143022"
+  --desc, --description   설명 파일 저장
+  --json                 JSON 정보 파일 저장
+  -h, --help            도움말 표시
 
 예시:
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --folderName "이번플리_{date}_{time}"
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --parentFolder "강의"
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --parentFolder "음악" --folderName "좋은노래"
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --audio-only
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --output-dir ./videos
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --quality 1080
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --auto
+  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ          # 기본 다운로드 (비디오+오디오+썸네일)
+  youtube dQw4w9WgXcQ --desc                                   # ID로 다운로드 + 설명 파일
+  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --json   # 모든 정보 JSON 저장
 `);
 }
 
@@ -307,74 +281,50 @@ function selectBestFormat(formats) {
 }
 
 // 동영상을 다운로드하는 함수
-async function downloadVideo(url, videoInfo, folderName, selectedFormat, options = {}) {
+async function downloadVideo(url, videoInfo, options = {}) {
   try {
-    // 포맷 문자열 생성
-    let formatString;
-
-    if (selectedFormat === 'auto') {
-      // 자동 선택 (최고 품질 비디오 + 최고 품질 오디오)
-      if (options.quality) {
-        formatString = `bestvideo[height>=${options.quality}]+bestaudio/bestvideo+bestaudio/best`;
-      } else {
-        formatString = 'bestvideo+bestaudio/best';
-      }
-    } else {
-      // 사용자가 선택한 특정 포맷
-      formatString = selectedFormat;
-    }
-
-    const downloadOptions = {
+    // 비디오 다운로드 옵션
+    const videoOptions = {
       noPlaylist: true,
-      format: formatString,
+      // 2160p60 VP9 포맷 (itag 315) 우선 시도
+      format: '315+140/bestvideo+bestaudio/best',
       mergeOutputFormat: 'mp4',
       writeThumbnail: true,
-      writeDescription: true,
-      writeInfoJson: true
+      writeDescription: options.description,
+      writeInfoJson: options.json
     };
 
-    // 기본 출력 폴더 설정 (process.env.TARGET_DIR/사용자폴더명/)
-    const defaultOutputDir = path.join(process.env.TARGET_DIR, folderName);
-
-    // 출력 폴더 설정
-    if (options.outputDir) {
-      downloadOptions.output = path.join(options.outputDir, '%(title)s.%(ext)s');
-    } else {
-      // 기본 폴더에 저장하되, 파일명은 간단하게
-      downloadOptions.output = path.join(defaultOutputDir, 'video.%(ext)s');
-    }
-
-    // 파일명 지정
-    if (options.filename) {
-      downloadOptions.output = path.join(defaultOutputDir, `${options.filename}.%(ext)s`);
-    } else {
-      // 파일명을 영상 제목(거의 그대로)으로 지정 (금지된 문자만 _로 대체)
-      const safeTitle = minimalSanitizeFilename(videoInfo.title);
-      downloadOptions.output = path.join(defaultOutputDir, `${safeTitle}.%(ext)s`);
-    }
-
-    // 오디오만 다운로드
-    if (options.audioOnly) {
-      downloadOptions.format = 'bestaudio[ext=m4a]/bestaudio';
-      downloadOptions.extractAudio = true;
-      downloadOptions.audioFormat = 'mp3';
-      delete downloadOptions.writeThumbnail;
-      delete downloadOptions.writeDescription;
-    }
+    // 기본 출력 폴더 설정
+    const safeTitle = minimalSanitizeFilename(videoInfo.title);
+    const defaultOutputDir = path.join("Z:\\media\\datas", safeTitle);
+    videoOptions.output = path.join(defaultOutputDir, `${safeTitle}.%(ext)s`);
 
     // 출력 폴더 생성
-    const outputDir = path.dirname(downloadOptions.output.replace('%(title)s', videoInfo.title).replace('%(ext)s', 'mp4'));
+    const outputDir = path.dirname(videoOptions.output);
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
-      // console.log(`📁 폴더 생성: ${outputDir}`);
     }
 
-    // console.log('다운로드 시작...');
-    // console.log(`📂 저장 위치: ${outputDir}`);
+    // 비디오 다운로드
+    console.log('\n📹 비디오 다운로드 중...');
+    console.log('선택된 포맷: 2160p60 VP9 (최고 품질)');
+    const videoPromise = youtubedl(url, videoOptions);
+    await logger(videoPromise, `다운로드 중: ${videoInfo.title}`);
 
-    // progress-estimator logger로 다운로드 중에만 스피너 출력
-    const downloadPromise = youtubedl(url, downloadOptions);
-    await logger(downloadPromise, `다운로드 중: ${videoInfo.title}`);
+    // 오디오 다운로드 옵션 
+    const audioOptions = {
+      noPlaylist: true,
+      format: '320/bestaudio/best',
+      extractAudio: true,
+      audioFormat: 'mp3',
+      output: path.join(defaultOutputDir, `${safeTitle}.%(ext)s`),
+      audioQuality: '0'
+    };
+
+    // 오디오 다운로드
+    console.log('\n🎵 오디오 다운로드 중...');
+    const audioPromise = youtubedl(url, audioOptions);
+    await logger(audioPromise, `오디오 다운로드 중: ${videoInfo.title}`);
 
     console.log(`\n✅ 다운로드 완료! (📁 ${outputDir})`);
   } catch (error) {
@@ -387,65 +337,22 @@ async function main() {
   const args = process.argv.slice(2);
 
   // 도움말 표시
-  if (args.includes('--help') || args.length === 0) {
+  if (args.includes('--help') || args.includes('-h') || args.length === 0) {
     showUsage();
     return;
   }
 
   // 옵션 파싱
-  const options = {};
-  const remainingArgs = [];
+  const options = {
+    description: args.includes('--desc') || args.includes('--description'),
+    json: args.includes('--json')
+  };
 
-  for (let i = 0; i < args.length; i++) {
-    let skipNext = false;
-
-    switch (args[i]) {
-      case '--folderName':
-        options.folderName = args[++i];
-        skipNext = true;
-        break;
-      case '--parentFolder':
-        options.parentFolder = args[++i];
-        skipNext = true;
-        break;
-      case '--output-dir':
-        options.outputDir = args[++i];
-        skipNext = true;
-        break;
-      case '--filename':
-        options.filename = args[++i];
-        skipNext = true;
-        break;
-      case '--audio-only':
-        options.audioOnly = true;
-        break;
-      case '--quality':
-        options.quality = parseInt(args[++i]);
-        skipNext = true;
-        break;
-      case '--auto':
-        options.auto = true;
-        break;
-    }
-
-    // 옵션이 아닌 경우 remainingArgs에 추가 (옵션 값은 제외)
-    if (!args[i].startsWith('--') && !skipNext) {
-      remainingArgs.push(args[i]);
-    }
-  }
-
-  // URL 추출 (남은 인자 중 첫 번째)
-  if (remainingArgs.length === 0) {
-    console.error('❌ YouTube URL이 필요합니다.');
-    showUsage();
-    return;
-  }
-
-  let url = remainingArgs[0];
+  // URL 추출 (첫 번째 인자)
+  let url = args[0];
 
   // YouTube ID만 입력된 경우 전체 URL로 변환
   if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-    // YouTube ID 패턴 확인 (11자리 영문자+숫자)
     const youtubeIdPattern = /^[a-zA-Z0-9_-]{11}$/;
     if (youtubeIdPattern.test(url)) {
       url = `https://www.youtube.com/watch?v=${url}`;
@@ -458,80 +365,25 @@ async function main() {
     }
   }
 
-  // YouTube URL 검증
-  if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-    console.error('❌ 유효한 YouTube URL이 아닙니다.');
-    return;
-  }
-
   try {
-    // youtube-dl-exec 사용 가능 확인
-    const hasYoutubeDl = await checkYoutubeDl();
-    if (!hasYoutubeDl) {
-      console.error('❌ youtube-dl-exec가 제대로 설정되지 않았습니다.');
-      console.log('\n해결 방법:');
-      console.log('  npm install youtube-dl-exec');
-      console.log('  또는');
-      console.log('  yarn add youtube-dl-exec');
-      return;
-    }
-
-    // 출력 폴더 생성
-    if (options.outputDir && !fs.existsSync(options.outputDir)) {
-      fs.mkdirSync(options.outputDir, { recursive: true });
-      console.log(`📁 출력 폴더 생성: ${options.outputDir}`);
-    }
-
     // 동영상 정보 가져오기
     console.log('📹 동영상 정보를 가져오는 중...');
     const videoInfo = await getVideoInfo(url);
 
-    // 폴더명 설정 (기본값: 영상 제목)
-    let folderName = options.folderName || videoInfo.title;
-
-    // 예약어를 현재 날짜/시간으로 치환한 폴더명 표시
-    const processedFolderName = replacePlaceholders(folderName);
-    const safeFolderName = sanitizeFolderName(processedFolderName);
-
-    // 부모 폴더가 지정된 경우 하위 폴더 구조로 생성
-    let finalFolderName = safeFolderName;
-    if (options.parentFolder) {
-      finalFolderName = `${options.parentFolder}/${safeFolderName}`;
-    }
-
-    console.log(`\n📁 폴더명: ${finalFolderName}`);
-    console.log(`📺 제목: ${videoInfo.title}`);
+    console.log(`\n📺 제목: ${videoInfo.title}`);
     console.log(`⏱️  길이: ${Math.floor(videoInfo.duration / 60)}:${(videoInfo.duration % 60).toString().padStart(2, '0')}`);
     console.log(`👁️  조회수: ${videoInfo.view_count?.toLocaleString() || 'N/A'}`);
-
-    // 사용 가능한 포맷들 표시
-    // showAvailableFormats(videoInfo.formats);
-
-    // 사용자가 포맷 선택
-    let selectedFormat;
-
-    if (options.auto) {
-      // 자동 선택 모드
-      selectedFormat = 'auto';
-      console.log('\n✅ 자동 선택 모드 (최고 품질)');
-    } else {
-      // 인터랙티브 선택 모드
-      selectedFormat = await selectFormat(videoInfo.formats);
-
-      // 선택된 포맷 정보 표시
-      if (selectedFormat !== 'auto') {
-        const selectedFormatInfo = videoInfo.formats.find(f => f.format_id === selectedFormat);
-        if (selectedFormatInfo) {
-          const size = selectedFormatInfo.filesize ? Math.round(selectedFormatInfo.filesize / 1024 / 1024) + 'MB' : 'N/A';
-          console.log(`\n✅ 선택된 포맷: ${selectedFormatInfo.height || 'N/A'}p (${selectedFormatInfo.ext}) - ${size}`);
-        }
-      } else {
-        console.log('\n✅ 자동 선택 모드 (최고 품질)');
-      }
-    }
+    
+    // 저장될 파일 정보 표시
+    console.log('\n📦 저장될 파일:');
+    console.log('- 📹 비디오 (MP4)');
+    console.log('- 🎵 오디오 (MP3)');
+    console.log('- 🖼️ 썸네일');
+    if (options.description) console.log('- 📝 설명 파일');
+    if (options.json) console.log('- 📋 JSON 정보');
 
     // 다운로드 실행
-    await downloadVideo(url, videoInfo, finalFolderName, selectedFormat, options);
+    await downloadVideo(url, videoInfo, options);
 
   } catch (error) {
     console.error(`❌ 오류: ${error.message}`);
@@ -544,4 +396,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { downloadVideo, getVideoInfo, selectBestFormat };
+module.exports = { downloadVideo, getVideoInfo };
