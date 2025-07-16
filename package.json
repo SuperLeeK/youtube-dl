@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "sh -c 'if [ -n \"$@\" ]; then node index.js --auto $@ && node index.js --audio-only --auto $@; fi' --"
   },
   "keywords": [],
   "author": "",
