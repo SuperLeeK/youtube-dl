@@ -22,12 +22,17 @@ YouTube 다운로더 (최고 화질)
 옵션:
   --desc, --description   설명 파일 저장
   --json                 JSON 정보 파일 저장
+  --parent-folder        상위 폴더 경로 지정 (기본값: Z:\\media)
+  --folder-name          폴더명 지정 (기본값: 동영상 제목)
+  --output-dir           출력 폴더 직접 지정
+  --filename             파일명 지정 (확장자 제외)
   -h, --help            도움말 표시
 
 예시:
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ          # 기본 다운로드 (비디오+오디오+썸네일)
+  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ          # 기본 다운로드
   youtube dQw4w9WgXcQ --desc                                   # ID로 다운로드 + 설명 파일
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ --json   # 모든 정보 JSON 저장
+  youtube https://youtu.be/dQw4w9WgXcQ --parent-folder "D:\\Videos"  # 상위 폴더 지정
+  youtube dQw4w9WgXcQ --folder-name "MyVideo_{date}"          # 날짜가 포함된 폴더명
 `);
 }
 
@@ -283,27 +288,48 @@ function selectBestFormat(formats) {
 // 동영상을 다운로드하는 함수
 async function downloadVideo(url, videoInfo, options = {}) {
   try {
+    // 경로 설정
+    const safeTitle = minimalSanitizeFilename(videoInfo.title);
+    let outputDir;
+    let filename;
+
+    if (options.outputDir) {
+      // 출력 폴더를 직접 지정한 경우
+      outputDir = options.outputDir;
+      filename = options.filename || safeTitle;
+    } else {
+      // 기본 미디어 폴더
+      const mediaFolder = "Z:\\media";
+      
+      // 부모 폴더 설정 (media 하위 폴더)
+      // parent-folder 또는 parentFolder 둘 다 허용
+      const parentFolder = options['parent-folder'] || options.parentFolder || '';
+      
+      // 최종 경로: Z:\media\[parent-folder]\[video-title]
+      outputDir = parentFolder 
+        ? path.join(mediaFolder, parentFolder, safeTitle)
+        : path.join(mediaFolder, safeTitle);
+      
+      filename = options.filename || safeTitle;
+    }
+
+    // 출력 폴더 생성
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    console.log(`\n📂 저장 경로: ${outputDir}`);
+
     // 비디오 다운로드 옵션
     const videoOptions = {
       noPlaylist: true,
-      // 2160p60 VP9 포맷 (itag 315) 우선 시도
       format: '315+140/bestvideo+bestaudio/best',
       mergeOutputFormat: 'mp4',
       writeThumbnail: true,
       writeDescription: options.description,
-      writeInfoJson: options.json
+      writeInfoJson: options.json,
+      output: path.join(outputDir, `${filename}.%(ext)s`)
     };
-
-    // 기본 출력 폴더 설정
-    const safeTitle = minimalSanitizeFilename(videoInfo.title);
-    const defaultOutputDir = path.join("Z:\\media", safeTitle);
-    videoOptions.output = path.join(defaultOutputDir, `${safeTitle}.%(ext)s`);
-
-    // 출력 폴더 생성
-    const outputDir = path.dirname(videoOptions.output);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
 
     // 비디오 다운로드
     console.log('\n📹 비디오 다운로드 중...');
@@ -311,20 +337,30 @@ async function downloadVideo(url, videoInfo, options = {}) {
     const videoPromise = youtubedl(url, videoOptions);
     await logger(videoPromise, `다운로드 중: ${videoInfo.title}`);
 
-    // 오디오 다운로드 옵션 
+    // 오디오 다운로드 옵션
     const audioOptions = {
       noPlaylist: true,
-      format: '320/bestaudio/best',
+      format: 'bestaudio',
       extractAudio: true,
       audioFormat: 'mp3',
-      output: path.join(defaultOutputDir, `${safeTitle}.%(ext)s`),
-      audioQuality: '0'
+      audioQuality: '0',
+      output: path.join(outputDir, `${filename}.%(ext)s`)
     };
 
     // 오디오 다운로드
     console.log('\n🎵 오디오 다운로드 중...');
-    const audioPromise = youtubedl(url, audioOptions);
-    await logger(audioPromise, `오디오 다운로드 중: ${videoInfo.title}`);
+    try {
+      const audioPromise = youtubedl(url, audioOptions);
+      await logger(audioPromise, `오디오 다운로드 중: ${videoInfo.title}`);
+    } catch (error) {
+      console.log('\n⚠️ 오디오 다운로드 실패. 다시 시도합니다...');
+      const backupAudioOptions = {
+        ...audioOptions,
+        format: 'bestaudio/best'
+      };
+      const audioPromise = youtubedl(url, backupAudioOptions);
+      await logger(audioPromise, `오디오 다운로드 재시도 중: ${videoInfo.title}`);
+    }
 
     console.log(`\n✅ 다운로드 완료! (📁 ${outputDir})`);
   } catch (error) {
@@ -342,14 +378,43 @@ async function main() {
     return;
   }
 
-  // 옵션 파싱
+  // 메인 함수의 옵션 파싱 부분
   const options = {
     description: args.includes('--desc') || args.includes('--description'),
     json: args.includes('--json')
   };
 
-  // URL 추출 (첫 번째 인자)
-  let url = args[0];
+  // 옵션 값이 있는 인자들 파싱
+  const optionsMap = {
+    '--parent-folder': 'parent-folder',  // 대시 형식 유지
+    '--folder-name': 'folder-name',
+    '--output-dir': 'outputDir',
+    '--filename': 'filename'
+  };
+
+  Object.entries(optionsMap).forEach(([flag, optionName]) => {
+    const index = args.indexOf(flag);
+    if (index !== -1 && index + 1 < args.length && !args[index + 1].startsWith('--')) {
+      options[optionName] = args[index + 1];
+    }
+  });
+
+  // URL 찾기 (옵션과 옵션값이 아닌 인자)
+  let url = args.find((arg, index) => {
+    // 옵션이 아니고
+    if (arg.startsWith('--')) return false;
+    
+    // 이전 인자가 옵션이 아닌 경우만
+    if (index > 0 && args[index - 1].startsWith('--')) return false;
+    
+    return true;
+  });
+
+  if (!url) {
+    console.error('❌ YouTube URL 또는 ID를 입력해주세요.');
+    showUsage();
+    return;
+  }
 
   // YouTube ID만 입력된 경우 전체 URL로 변환
   if (!url.includes('youtube.com') && !url.includes('youtu.be')) {

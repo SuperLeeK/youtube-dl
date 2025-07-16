@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "bin": {
-    "youtube": "./bin/index.js"
+    "youtube": "./bin/index.js",
+    "youtube-batch": "./bin/batch-download.js"
   },
   "scripts": {
     "start": "node ./bin/index.js"
