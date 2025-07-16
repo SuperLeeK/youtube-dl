@@ -10,6 +10,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "inquirer": "^12.7.0"
+    "inquirer": "^12.7.0",
+    "youtube-dl-exec": "^3.0.22"
   }
 }
