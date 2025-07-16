@@ -2,6 +2,12 @@
   "name": "youtube-dl",
   "version": "1.0.0",
   "main": "index.js",
+  "bin": {
+    "youtube": "./index.js --auto",
+    "wak": "./index.js --parentFolder 'Waktaverse' --auto",
+    "music": "./index.js --parentFolder 'Music' --auto",
+    "wak-audio": "./index.js --parentFolder 'Waktaverse Music' --audio-only --auto"
+  },
   "scripts": {
     "video": "node index.js --auto",
     "audio": "node index.js --audio-only --auto",
