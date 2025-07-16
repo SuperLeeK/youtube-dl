@@ -12,6 +12,6 @@
   "dependencies": {
     "inquirer": "^12.7.0",
     "progress-estimator": "^0.3.1",
-    "youtube-dl-exec": "^3.0.22"
+    "youtube-dl-exec": "3.0.22"
   }
 }
