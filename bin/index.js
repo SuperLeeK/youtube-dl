@@ -296,7 +296,7 @@ async function downloadVideo(url, videoInfo, options = {}) {
 
     // 기본 출력 폴더 설정
     const safeTitle = minimalSanitizeFilename(videoInfo.title);
-    const defaultOutputDir = path.join("Z:\\media\\datas", safeTitle);
+    const defaultOutputDir = path.join("Z:\\media", safeTitle);
     videoOptions.output = path.join(defaultOutputDir, `${safeTitle}.%(ext)s`);
 
     // 출력 폴더 생성
