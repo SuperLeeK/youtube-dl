@@ -14,25 +14,26 @@ const logger = createLogger({
 // 사용법을 출력하는 함수
 function showUsage() {
   console.log(`
-YouTube 다운로더 (최고 화질)
+YouTube 동영상 다운로더 (최고 화질)
 
 사용법:
   youtube <YouTube_URL> [옵션]
 
 옵션:
-  --desc, --description   설명 파일 저장
-  --json                 JSON 정보 파일 저장
-  --parent-folder        상위 폴더 경로 지정 (기본값: Z:\\media)
-  --folder-name          폴더명 지정 (기본값: 동영상 제목)
-  --output-dir           출력 폴더 직접 지정
-  --filename             파일명 지정 (확장자 제외)
-  -h, --help            도움말 표시
+  --parent-folder <폴더>   부모 폴더 지정 (예: --parent-folder ASMR)
+  --folder-name <이름>     폴더명 지정
+  --output-dir <경로>      출력 디렉토리 지정
+  --filename <이름>        파일명 지정
+  --desc, --description    설명 파일 다운로드
+  --json                   JSON 정보 파일 다운로드
+  --show-info              상세 정보 표시
+  --help, -h               도움말 표시
 
 예시:
-  youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ          # 기본 다운로드
-  youtube dQw4w9WgXcQ --desc                                   # ID로 다운로드 + 설명 파일
-  youtube https://youtu.be/dQw4w9WgXcQ --parent-folder "D:\\Videos"  # 상위 폴더 지정
-  youtube dQw4w9WgXcQ --folder-name "MyVideo_{date}"          # 날짜가 포함된 폴더명
+  youtube https://www.youtube.com/watch?v=dQw49WgXcQ
+  youtube dQw4w9WgXcQ --parent-folder ASMR
+  youtube dQw4w9WgXcQ --show-info
+  youtube dQw4w9WgXcQ --parent-folder ASMR--show-info
 `);
 }
 
@@ -116,7 +117,8 @@ async function getVideoInfo(url) {
   try {
     const info = await youtubedl(url, {
       dumpJson: true,
-      noPlaylist: true
+      noPlaylist: true,
+      cookiesFromBrowser: 'chrome'  // Chrome에서 쿠키 자동 추출
     });
     return info;
   } catch (error) {
@@ -299,17 +301,17 @@ async function downloadVideo(url, videoInfo, options = {}) {
       filename = options.filename || safeTitle;
     } else {
       // 기본 미디어 폴더
-      const mediaFolder = "Z:\\media";
-      
+      const mediaFolder = "/Users/zero/Workspace/superleek/cli-tools/datas/";
+
       // 부모 폴더 설정 (media 하위 폴더)
       // parent-folder 또는 parentFolder 둘 다 허용
       const parentFolder = options['parent-folder'] || options.parentFolder || '';
-      
+
       // 최종 경로: Z:\media\[parent-folder]\[video-title]
-      outputDir = parentFolder 
+      outputDir = parentFolder
         ? path.join(mediaFolder, parentFolder, safeTitle)
         : path.join(mediaFolder, safeTitle);
-      
+
       filename = options.filename || safeTitle;
     }
 
@@ -318,7 +320,14 @@ async function downloadVideo(url, videoInfo, options = {}) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    console.log(`\n📂 저장 경로: ${outputDir}`);
+    if(options.showInfo) {
+      console.log(`\n📂 저장 경로: ${outputDir}`);
+    }
+
+    // 쿠키 파일 경로 확인
+    const mediaFolder = "/Users/zero/Workspace/superleek/cli-tools/datas/";
+    const cookiesPath = path.join(mediaFolder, 'cookies.txt');
+    const hasCookies = fs.existsSync(cookiesPath);
 
     // 비디오 다운로드 옵션
     const videoOptions = {
@@ -330,6 +339,12 @@ async function downloadVideo(url, videoInfo, options = {}) {
       writeInfoJson: options.json,
       output: path.join(outputDir, `${filename}.%(ext)s`)
     };
+
+    // 쿠키 파일이 있으면 추가
+    if (hasCookies) {
+      videoOptions.cookies = cookiesPath;
+      console.log('🍪 쿠키 파일을 사용합니다.');
+    }
 
     // 비디오 다운로드
     console.log('\n📹 비디오 다운로드 중...');
@@ -347,6 +362,11 @@ async function downloadVideo(url, videoInfo, options = {}) {
       output: path.join(outputDir, `${filename}.%(ext)s`)
     };
 
+    // 쿠키 파일이 있으면 오디오 다운로드에도 추가
+    if (hasCookies) {
+      audioOptions.cookies = cookiesPath;
+    }
+
     // 오디오 다운로드
     console.log('\n🎵 오디오 다운로드 중...');
     try {
@@ -362,7 +382,7 @@ async function downloadVideo(url, videoInfo, options = {}) {
       await logger(audioPromise, `오디오 다운로드 재시도 중: ${videoInfo.title}`);
     }
 
-    console.log(`\n✅ 다운로드 완료! (📁 ${outputDir})`);
+    console.log(`\n✅ 다운로드 완료!` + (options.showInfo ? ` (📁 ${outputDir})` : ''));
   } catch (error) {
     throw new Error(`다운로드 실패: ${error.message}`);
   }
@@ -381,7 +401,8 @@ async function main() {
   // 메인 함수의 옵션 파싱 부분
   const options = {
     description: args.includes('--desc') || args.includes('--description'),
-    json: args.includes('--json')
+    json: args.includes('--json'),
+    showInfo: args.includes('--show-info') // 상세 정보 표시 옵션 추가
   };
 
   // 옵션 값이 있는 인자들 파싱
@@ -389,7 +410,8 @@ async function main() {
     '--parent-folder': 'parent-folder',  // 대시 형식 유지
     '--folder-name': 'folder-name',
     '--output-dir': 'outputDir',
-    '--filename': 'filename'
+    '--filename': 'filename',
+    '--cookies': 'cookies'  // 쿠키 옵션 추가
   };
 
   Object.entries(optionsMap).forEach(([flag, optionName]) => {
@@ -403,10 +425,10 @@ async function main() {
   let url = args.find((arg, index) => {
     // 옵션이 아니고
     if (arg.startsWith('--')) return false;
-    
+
     // 이전 인자가 옵션이 아닌 경우만
     if (index > 0 && args[index - 1].startsWith('--')) return false;
-    
+
     return true;
   });
 
@@ -435,17 +457,20 @@ async function main() {
     console.log('📹 동영상 정보를 가져오는 중...');
     const videoInfo = await getVideoInfo(url);
 
-    console.log(`\n📺 제목: ${videoInfo.title}`);
-    console.log(`⏱️  길이: ${Math.floor(videoInfo.duration / 60)}:${(videoInfo.duration % 60).toString().padStart(2, '0')}`);
-    console.log(`👁️  조회수: ${videoInfo.view_count?.toLocaleString() || 'N/A'}`);
-    
-    // 저장될 파일 정보 표시
-    console.log('\n📦 저장될 파일:');
-    console.log('- 📹 비디오 (MP4)');
-    console.log('- 🎵 오디오 (MP3)');
-    console.log('- 🖼️ 썸네일');
-    if (options.description) console.log('- 📝 설명 파일');
-    if (options.json) console.log('- 📋 JSON 정보');
+    // --show-info 옵션이 있을 때만 상세 정보 표시
+    if (options.showInfo) {
+      console.log(`\n📺 제목: ${videoInfo.title}`);
+      console.log(`⏱️  길이: ${Math.floor(videoInfo.duration / 60)}:${(videoInfo.duration % 60).toString().padStart(2, '0')}`);
+      console.log(`👁️  조회수: ${videoInfo.view_count?.toLocaleString() || 'N/A'}`);
+
+      // 저장될 파일 정보 표시
+      console.log('\n📦 저장될 파일:');
+      console.log('- 📹 비디오 (MP4)');
+      console.log('- 🎵 오디오 (MP3)');
+      console.log('- 🖼️ 썸네일');
+      if (options.description) console.log('- 📝 설명 파일');
+      if (options.json) console.log('- 📋 JSON 정보');
+    }
 
     // 다운로드 실행
     await downloadVideo(url, videoInfo, options);
